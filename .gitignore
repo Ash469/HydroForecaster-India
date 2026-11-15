@@ -1,0 +1,26 @@
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+*.log
+
+# Large Datasets (over 18 GB)
+dataset/raw/
+dataset/cleaned_csv/
+dataset/parquet/
+dataset/clean_parquet/
+dataset/feature_matrix/
+dataset/
+*.csv
+*.zip
+*.tar.gz
+
+# Scratch and temporary directories
+junks/
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# Streamlit local config
+.streamlit/
