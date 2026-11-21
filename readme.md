@@ -26,34 +26,35 @@
 
 ```mermaid
 graph TD
-    subgraph S1["1. Data Ingestion & Spatial Preprocessing"]
-        A["Raw Government Telemetry: 52.09M Rows<br/>171 Files: CGWB DWLR and CWC AWS Stations"] --> B["Schema Unification & Clean CSVs<br/>1unify_clean_csv.py.py"]
-        B --> C["Binary Snappy Parquet Store<br/>2convert_to_parquet.py"]
-        C --> D["Master Station Catalog: 6,979 stations<br/>5build_station_catalog.py"]
-        D --> E["3D Spherical cKDTree Indexing<br/>6build_spatial_index.py"]
+    subgraph S1 [Phase 1: Telemetry Ingestion & Quality Audit]
+        A[52.09M Raw Telemetry Records - 171 Files] --> B[Glitch & Outlier Filtering - 6.31M Corrupt Filtered]
+        B --> C[Darcy Median Daily Aggregation]
     end
 
-    subgraph S2["2. Darcy Resampling & Spatial Feature Matrix"]
-        E --> F["Daily Median Station Aggregation<br/>Filters diurnal borewell pumping noise<br/>Notebook 03"]
-        F --> G["Spatial Inverse Distance Weighting: IDW<br/>Multi-station climate-aquifer flux coupling<br/>Notebook 04"]
-        G --> H["Master Feature Store: 3.00M rows x 62 features<br/>Lags t-1 to t-90, Rolling Rain, Seasonality<br/>Notebook 05"]
+    subgraph S2 [Phase 2: Hydrological Feature Engineering]
+        C --> D[3D Spherical cKDTree Indexing - R=6371 km]
+        D --> E[Spatial Inverse Distance Weighting - 3 Nearest Gauges]
+        E --> F[Vadose Infiltration Windows - 7, 14, 30, 90-Day Fluxes]
+        F --> G[Master Feature Store: 3.00M Rows x 62 Features]
     end
 
-    subgraph S3["3. Multi-Tier Machine Learning Tournament"]
-        H --> I["Zero-Leakage Split<br/>Train: 2022-2024: 2.16M | Test: 2025: 840K"]
-        I --> J1["Tier 1: Physical & Linear Baselines<br/>Persistence, Climatology, Ridge SAG, ElasticNet<br/>Notebook 06"]
-        I --> J2["Tier 2: Non-Linear Tree Ensembles<br/>Decision Trees, Random Forest, Extra Trees<br/>Notebook 07"]
-        I --> J3["Tier 3: Gradient Boosters<br/>LightGBM, XGBoost, CatBoost<br/>Notebook 08"]
-        J1 --> K["Tier 4: Optuna Tuning & Feature Ablation<br/>Best Model: LightGBM: RMSE 3.68m, R2 0.9631 at t+30<br/>Notebook 09"]
-        J2 --> K
-        J3 --> K
+    subgraph S3 [Phase 3: Multi-Tier ML Tournament]
+        G --> H[Strict Chronological Split - Train: 2022-2024 | Test: 2025]
+        H --> M1[Tier 0: Physical Persistence & Climatology]
+        H --> M2[Tier 1: Regularized Linear Models: Ridge, ElasticNet]
+        H --> M3[Tier 2: Tree Ensembles: Random Forest, ExtraTrees]
+        H --> M4[Tier 3: Gradient Boosters: LightGBM, XGBoost, CatBoost]
+        M1 --> M5[Tier 4: Optuna Bayesian Optimization]
+        M2 --> M5
+        M3 --> M5
+        M4 --> M5
     end
 
-    subgraph S4["4. Decision Support Platform & Inference"]
-        K --> L["Serialized Production Models in models/<br/>Notebook 10"]
-        H --> M["Lightweight Dashboard Stores in dashboard_data/<br/>Stations, Monthly Trajectories, Telemetry"]
-        L --> N["Interactive Streamlit Dashboard: app.py<br/>Screen 1: Data Observatory & Mathematical Funnel<br/>Screen 2: 47-Month Pan-India GIS Map<br/>Screen 3: Multi-Tier Model Leaderboard<br/>Screen 4: Real-Time Well Forecaster & Advisory"]
-        M --> N
+    subgraph S4 [Phase 4: Decision Support System]
+        M5 --> P1[Production Serialized Models]
+        G --> P2[Optimized GIS Parquet Stores]
+        P1 --> P3[Interactive Streamlit Dashboard: app.py]
+        P2 --> P3
     end
 ```
 
@@ -122,30 +123,67 @@ All models were evaluated under a **strict chronological zero-leakage partition*
 
 ---
 
-## 🔬 Core Scientific & Engineering Methodologies
+## 🔬 In-Depth Engineering & Modeling Methodology
 
-### 1. Daily Median Station Aggregation (Darcy's Law Rationale)
-Under Darcy's Law ($q = -K \frac{dh}{dl}$), regional groundwater flow through porous aquifer media occurs on the order of centimeters per day. High-frequency 6-hourly telemetry is heavily corrupted by localized tubewell drawdown cones from agricultural pumping and diurnal sensor temperature drift. 
-$$\text{gwl\_m}_{\text{daily}} = \text{median}(\text{gwl\_m}_{\text{sub-daily}})$$
-$$\text{rainfall}_{\text{daily}} = \sum \text{rainfall}_{\text{hourly}}$$
-$$\text{temp}_{\text{daily}} = \text{mean}(\text{temp}_{\text{hourly}})$$
-This collapses raw sensor noise with a **$3.84:1$ reduction ratio** while preserving pristine seasonal hydrographs.
+The project follows a rigorous four-phase scientific methodology tailored for continental-scale hydro-climatic modeling:
 
-### 2. Spatial Inverse Distance Weighting (IDW)
-Groundwater monitoring wells and meteorological stations rarely share identical physical coordinates. Using 3D spherical Earth Cartesian coordinates ($R=6,371\,\text{km}$), a `scipy.spatial.cKDTree` identifies the 3 closest rain gauges ($d_1, d_2, d_3$) for each well:
-$$\text{Rainfall}_{\text{well}} = \frac{\sum_{i=1}^3 \frac{\text{Rainfall}_i}{d_i}}{\sum_{i=1}^3 \frac{1}{d_i}}$$
-This incorporates localized hydrological precipitation fields directly into each aquifer's feature vector.
+```
+[Phase 1: Telemetric Cleaning] ──▶ [Phase 2: Spatial Feature Engineering] ──▶ [Phase 3: Multi-Tier ML Tournament] ──▶ [Phase 4: Synthesis & Advisory]
+```
 
-### 3. Vadose Zone Infiltration Lag Dynamics
-Water infiltrating through the unsaturated vadose zone requires weeks to months to reach deep phreatic surfaces. The pipeline calculates multi-scale rolling infiltration windows:
-$$\text{rainfall\_roll}_{k} = \sum_{j=0}^{k-1} \text{rainfall}_{t-j} \quad \text{for } k \in \{7, 14, 30, 90\} \text{ days}$$
-Coupled with autoregressive lags ($GW_{t-1}, GW_{t-7}, GW_{t-14}, GW_{t-30}, GW_{t-60}, GW_{t-90}$), this gives models access to both immediate aquifer pressure head and delayed recharge fluxes.
+### 1. Phase 1: Telemetry Ingestion, Anomaly Auditing & Darcy Aggregation
+* **Raw Government Telemetry Audit:** Sourced from 171 high-frequency telemetry archives spanning **52,088,570 raw records** across Central Ground Water Board (CGWB) Digital Water Level Recorders (DWLR) and Central Water Commission (CWC) Automatic Weather Stations (AWS).
+* **Hardware Glitch Filtering:** Identified and removed **6,306,419 corrupted records** (12.11% corruption rate) including stuck sensor values (`0.00m`, `-999.0m`), impossible groundwater depths exceeding regional aquifer bedrocks ($>150\text{m}$ bgl), and high-frequency battery dropouts.
+* **Darcy Median Aggregation:** Sub-daily (6-hourly/hourly) telemetry reflects localized diurnal tubewell drawdown cones rather than regional phreatic changes. Under Darcy's Law ($q = -K \frac{dh}{dl}$), regional groundwater movement occurs slowly (cm/day). We resample to daily median depths:
+  $$\text{gwl\_m}_{\text{daily}} = \text{median}(\text{gwl\_m}_{\text{sub-daily}})$$
+  $$\text{rainfall}_{\text{daily}} = \sum \text{rainfall}_{\text{hourly}}, \quad \text{temp}_{\text{daily}} = \text{mean}(\text{temp}_{\text{hourly}})$$
+  This collapses high-frequency noise with a **3.84:1 reduction ratio** while preserving regional seasonal hydrographs.
+
+### 2. Phase 2: Hydro-Climatic Spatial Feature Engineering
+* **3D Spherical Coordinate Transformation & cKDTree:** Groundwater wells and meteorological stations rarely co-locate. Using Earth radius ($R = 6,371\,\text{km}$), latitude/longitude coordinates are mapped to 3D Cartesian space $(X, Y, Z)$ to enable rapid nearest-neighbor queries via `scipy.spatial.cKDTree`.
+* **Inverse Distance Weighting (IDW):** For each monitoring well, daily rainfall is interpolated from the 3 nearest meteorological stations weighted inversely by distance:
+  $$\text{Rainfall}_{\text{well}} = \frac{\sum_{i=1}^3 \frac{\text{Rainfall}_i}{d_i}}{\sum_{i=1}^3 \frac{1}{d_i}}$$
+* **Vadose Zone Infiltration Lag Dynamics:** Infiltration through unsaturated soil profiles to deep water tables involves substantial time delays. Multi-scale rolling precipitation sums capture gradual aquifer replenishment:
+  $$\text{rainfall\_roll}_{k} = \sum_{j=0}^{k-1} \text{rainfall}_{t-j} \quad \text{for } k \in \{7, 14, 30, 90\} \text{ days}$$
+* **Autoregressive & Cyclical Features:** 6 historical groundwater lag features ($GW_{t-1}, GW_{t-7}, GW_{t-14}, GW_{t-30}, GW_{t-60}, GW_{t-90}$) plus sinusoidal day-of-year transformations ($\sin(2\pi d/365), \cos(2\pi d/365)$) provide temporal memory and monsoon seasonality.
+* **Master Feature Store:** Yields **3,003,349 daily records across 62 engineered features** covering 4,879 active piezometers in 28 Indian States and UTs.
+
+---
+
+## 🏆 Model Architectures, Experimental Tiers & Detailed Outcomes
+
+To prevent synthetic performance inflation and data leakage, all models were evaluated on a **strict chronological zero-leakage split**:
+* **Training Set:** October 2022 – December 2024 (2,163,349 records)
+* **Out-of-Sample Test Set:** January 2025 – December 2025 (840,000 records across all Indian wells)
+* Missing features were imputed exclusively using training-set medians.
+
+### Tier 0: Physical & Climatological Baselines
+* **Models Evaluated:** Persistence Model ($GW_{t+k} = GW_t$) and Historical Monthly Station Climatology.
+* **Outcomes:** Persistence provides a baseline at $t+14$ (RMSE 2.85 m), but deteriorates rapidly at $t+30$ (RMSE 4.12 m, $R^2 = 0.9520$) and $t+60$ (RMSE 5.86 m). It fails to anticipate seasonal monsoon recharge or pre-monsoon declines because it assumes static conditions.
+
+### Tier 1: Regularized Linear Baselines
+* **Models Evaluated:** Ridge L2 Regularization (Stochastic Average Gradient - SAG solver, $\alpha=10.0$) and ElasticNet ($\ell_1/\ell_2$ penalty).
+* **Outcomes:** Ridge regression captures linear autoregressive trends efficiently ($t+30$ RMSE 4.02 m, $R^2 = 0.9557$). However, linear models struggle with extreme hydrological thresholds—such as sudden monsoon water table spikes—and require strict feature scaling to avoid explosive spatial coordinate projections.
+
+### Tier 2: Non-Linear Tree Ensembles
+* **Models Evaluated:** Decision Trees, Random Forest Regressor (100 estimators), and Extra Trees.
+* **Outcomes:** Random Forest dramatically reduces non-linear error ($t+30$ RMSE 3.82 m, $R^2 = 0.9602$, MAE 1.48 m). Decision trees naturally model localized hydrogeological stratification and soil absorption cutoffs without requiring manual coordinate scaling.
+
+### Tier 3: Gradient Boosted Decision Trees (GBDT)
+* **Models Evaluated:** LightGBM (Leaf-wise histogram tree growth), XGBoost (Exact greedy), and CatBoost.
+* **Outcomes:** LightGBM achieved the highest computational throughput and predictive accuracy ($t+30$ RMSE 3.74 m, $R^2 = 0.9618$). Its leaf-wise tree growth strategy isolates localized spatial clusters while capturing complex interactions between rolling rainfall and multi-week lags.
+
+### Tier 4: Bayesian Hyperparameter Optimization & Feature Ablation
+* **Models Evaluated:** Optuna Bayesian-tuned LightGBM (tuning `num_leaves`, `learning_rate`, `min_child_samples`, `subsample`, and `colsample_bytree`).
+* **Outcomes:**
+  * **$t+14$ Days:** MAE **0.81 m** | RMSE **2.62 m** | $R^2$ **0.9804**
+  * **$t+30$ Days:** MAE **1.38 m** | RMSE **3.68 m** | $R^2$ **0.9631** (Broke the sub-4.0 m continental error barrier)
+  * **$t+60$ Days:** MAE **1.94 m** | RMSE **4.64 m** | $R^2$ **0.9412**
+* **Feature Ablation Insights:** Autoregressive lags ($GW_{t-1}, GW_{t-7}$) dominate short-horizon forecasts ($t+14$). However, at $t+60$, rolling IDW rainfall sums ($\text{rainfall\_roll}_{30}, \text{rainfall\_roll}_{90}$) and temperature demand contribute **+14.2%** of predictive power, preventing cumulative drift during monsoon onset.
 
 ---
 
 ## 🌐 Official Government Data Sources & Reference Links
-
-The raw datasets powering this project are sourced from official Government of India water informatics repositories:
 
 * **National Water Data Portal (NWDP / NWIC):**  
   * Portal Home: [https://www.nwdp.nwic.gov.in](https://www.nwdp.nwic.gov.in)  
@@ -163,48 +201,6 @@ The raw datasets powering this project are sourced from official Government of I
   * CWC Solar Radiation Telemetry: [https://nwdp.nwic.gov.in/dataset/solar-radiation-telemetry-hourly-assam](https://nwdp.nwic.gov.in/dataset/solar-radiation-telemetry-hourly-assam)  
   * CWC River Water Level (RWL) Telemetry: [https://nwdp.nwic.gov.in/en/dataset/river-water-level-telemetry-hourly-assam-department](https://nwdp.nwic.gov.in/en/dataset/river-water-level-telemetry-hourly-assam-department)  
   * CWC River Discharge Telemetry: [https://nwdp.nwic.gov.in/dataset/river-discharge-telemetry-hourly-central-water-commission-cwc](https://nwdp.nwic.gov.in/dataset/river-discharge-telemetry-hourly-central-water-commission-cwc)
-
----
-
-## 🚀 Quickstart: Running the Application Locally
-
-### 1. Clone & Set Up Environment
-```bash
-git clone https://github.com/<your-username>/HydroForecaster-India.git
-cd HydroForecaster-India
-
-# Create and activate virtual environment
-python -m venv venv
-# On Windows:
-venv\Scripts\activate
-# On Linux/macOS:
-source venv/bin/activate
-
-# Install dependencies
-pip install -r requirements.txt
-```
-
-### 2. Launch the Streamlit Web Platform
-```bash
-streamlit run app.py
-```
-Open your browser at `http://localhost:8501` to interact with all 4 dashboard modules.
-
-### 3. Re-Running Pipeline Steps (Optional)
-If adding new telemetry CSV files to `dataset/raw/`:
-```bash
-# Run step 1: CSV unification, Parquet compression, KD-Tree distance matrix
-python run_preprocessing_scripts.py
-
-# Run step 2: In-place data cleaning, IDW, and feature engineering notebooks
-python run_feature_engineering_notebooks.py
-
-# Run step 3: Retrain model tiers (Tiers 1 to 4)
-python run_all_models_tiers.py
-
-# Run step 4: Export production models and refresh dashboard stores
-python run_export_models_for_dashboard.py
-```
 
 ---
 
