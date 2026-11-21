@@ -22,6 +22,11 @@ junks/
 .vscode/
 .idea/
 
+# Large Model / Benchmark artifacts (>50MB)
+*.pkl
+results/*.pkl
+!results/tier1_benchmark_metrics.pkl
+
 # Streamlit local config
 .streamlit/
 
