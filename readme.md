@@ -78,75 +78,49 @@ All models were evaluated under a **strict chronological zero-leakage partition*
 
 ---
 
-## 🗂️ Project Repository Structure
+## 🗂️ Core System Components
 
 ```
-├── app.py                                  # Streamlit Platform Shell (Platform metrics & module directory)
-├── requirements.txt                        # Production Python dependencies
-├── run_full_pipeline.py                    # Master End-to-End Orchestrator (Steps 1 to 4)
-├── run_preprocessing_scripts.py            # Step 1: Ingestion, Parquet compression, KD-Tree
-├── run_feature_engineering_notebooks.py    # Step 2: Executes Notebooks 03, 04, 05 in-place
-├── run_all_models_tiers.py                 # Step 3: Executes Modeling Notebooks 06, 07, 08, 09
-├── run_export_models_for_dashboard.py      # Step 4: Executes Notebook 10 for dashboard export
-│
-├── pages/                                  # Multi-Screen Streamlit Dashboard Modules
-│   ├── 1_Data_Observatory.py               # Screen 1: 4-step reduction funnel, LaTeX Darcy math, state audit
-│   ├── 2_Spatial_EDA_GIS.py                # Screen 2: Full-screen Pan-India GIS map (47-month timeline slider)
-│   ├── 3_Model_Leaderboard.py              # Screen 3: Model tournament tables (Academic & Layman views)
-│   └── 4_Interactive_Forecaster.py         # Screen 4: Real-time well prediction & tubewell operational advisory
-│
-├── notebooks/                              # 10 Chronological Research & Modeling Notebooks
-│   ├── 01_PanIndia_Spatial_EDA.ipynb       # Station cataloging & river basin GIS analysis
-│   ├── 02_Full_dataInspection.ipynb        # Audit of 52M raw rows & sensor glitch detection
-│   ├── 03_PanIndia_Data_Cleaning_Pipeline.ipynb # Darcy daily median resampling & physical range truncation
-│   ├── 04_PanIndia_Feature_Engineering.ipynb    # Spatial IDW rainfall, rolling infiltration & lag generation
-│   ├── 05_PanIndia_Feature_Store_Report_and_ML_Blueprint.ipynb # Master Feature Store verification & CCF audit
-│   ├── 06_Tier_1_Physical_and_Linear_Baselines.ipynb # Persistence, Climatology, Ridge, ElasticNet
-│   ├── 07_Tier_2_Decision_Trees_and_Bagging_Ensembles.ipynb # Decision Trees, Random Forest, Extra Trees
-│   ├── 08_Tier_3_Advanced_Gradient_Boosting_Machines.ipynb # LightGBM, XGBoost, CatBoost
-│   ├── 09_Tier_4_Hyperparameter_Optimization_and_Ablation.ipynb # Optuna tuning & feature ablation
-│   └── 10_Model_Serialization_and_Dashboard_Export.ipynb # Production model export & dashboard caches
-│
-├── dashboard_data/                         # Optimized Parquet caches for Streamlit UI
-│   ├── stations_directory.parquet          # 4,879 well locations, depths, and classifications
-│   ├── monthly_station_features.parquet    # Monthly spatial slices across 47 timeline months
-│   ├── recent_telemetry_2024_2025.parquet  # Real-time station telemetry for live forecaster
-│   ├── state_breakdown_summary.parquet     # National state metrics (wells, records, mean depth/rain/temp)
-│   └── stations_by_state_category.parquet  # Sensor counts across 7 categories per state
-│
-└── models/                                 # Serialized Production ML Models
-    ├── feature_names.joblib                # 21-feature input vector index
-    ├── ridge_t_14.joblib, ridge_t_30.joblib, ridge_t_60.joblib
-    ├── rf_t_14.joblib, rf_t_30.joblib, rf_t_60.joblib
-    └── lgb_t_14.txt, lgb_t_30.txt, lgb_t_60.txt
+├── app.py / pages/             # 4-screen Streamlit decision-support platform
+├── notebooks/ (01 to 10)       # End-to-end telemetry audit, feature engineering & model tournament
+├── dashboard_data/             # Precomputed GIS station directories & monthly trajectories
+└── models/                     # Serialized production models (Ridge, Random Forest, LightGBM)
 ```
 
 ---
 
-## 🔬 In-Depth Engineering & Modeling Methodology
+## 💾 Telemetry Audit & Big-Data Ingestion Metrics
 
-The project follows a rigorous four-phase scientific methodology tailored for continental-scale hydro-climatic modeling:
+| Hydro-Climatic Category | State Telemetry Files | Observation Row Count | Primary Measurement & Unit | Verified Date Bounds |
+| :--- | :---: | :---: | :--- | :--- |
+| **Groundwater Level (GWL)** | **24** | **13,007,924** | `gwl_m` *(Target Depth below ground in meters)* | Jan 2023 – Dec 2025 |
+| **Solar Radiation** | **26** | **9,589,536** | `solar_wm2` *(Insolation in W/m²)* | Jan 2021 – Dec 2025 |
+| **River Water Level (RWL)** | **25** | **12,018,270** | `rwl_m` *(Stage height in meters)* | Jan 2021 – Feb 2025 |
+| **Relative Humidity** | **22** | **5,888,224** | `humidity_pct` *(Saturation in %)* | Jan 2022 – Dec 2024 |
+| **Atmospheric Pressure** | **24** | **4,433,590** | `pressure_mb` *(Pressure in mb/hPa)* | Jan 2021 – Dec 2025 |
+| **Air Temperature** | **24** | **4,254,672** | `temp_c` *(Dry bulb ambient in °C)* | Feb 2022 – Dec 2025 |
+| **Rainfall** | **26** | **2,896,354** | `rainfall_mm` *(Precipitation in mm)* | Jan 2021 – Dec 2025 |
+| **TOTALS / SCALE** | **171 files** | **52,088,570 rows** | **5.43 GB Raw CSV ➔ 209.86 MB Snappy Parquet (96.1% reduction)** | **2021 – 2025** |
 
-```
-[Phase 1: Telemetric Cleaning] ──▶ [Phase 2: Spatial Feature Engineering] ──▶ [Phase 3: Multi-Tier ML Tournament] ──▶ [Phase 4: Synthesis & Advisory]
-```
+---
 
-### 1. Phase 1: Telemetry Ingestion, Anomaly Auditing & Darcy Aggregation
-* **Raw Government Telemetry Audit:** Sourced from 171 high-frequency telemetry archives spanning **52,088,570 raw records** across Central Ground Water Board (CGWB) Digital Water Level Recorders (DWLR) and Central Water Commission (CWC) Automatic Weather Stations (AWS).
-* **Hardware Glitch Filtering:** Identified and removed **6,306,419 corrupted records** (12.11% corruption rate) including stuck sensor values (`0.00m`, `-999.0m`), impossible groundwater depths exceeding regional aquifer bedrocks ($>150\text{m}$ bgl), and high-frequency battery dropouts.
-* **Darcy Median Aggregation:** Sub-daily (6-hourly/hourly) telemetry reflects localized diurnal tubewell drawdown cones rather than regional phreatic changes. Under Darcy's Law ($q = -K \frac{dh}{dl}$), regional groundwater movement occurs slowly (cm/day). We resample to daily median depths:
-  $$\text{gwl\_m}_{\text{daily}} = \text{median}(\text{gwl\_m}_{\text{sub-daily}})$$
-  $$\text{rainfall}_{\text{daily}} = \sum \text{rainfall}_{\text{hourly}}, \quad \text{temp}_{\text{daily}} = \text{mean}(\text{temp}_{\text{hourly}})$$
-  This collapses high-frequency noise with a **3.84:1 reduction ratio** while preserving regional seasonal hydrographs.
+## 🔬 Scientific Methodology & Quantitative Pipeline Metrics
 
-### 2. Phase 2: Hydro-Climatic Spatial Feature Engineering
-* **3D Spherical Coordinate Transformation & cKDTree:** Groundwater wells and meteorological stations rarely co-locate. Using Earth radius ($R = 6,371\,\text{km}$), latitude/longitude coordinates are mapped to 3D Cartesian space $(X, Y, Z)$ to enable rapid nearest-neighbor queries via `scipy.spatial.cKDTree`.
-* **Inverse Distance Weighting (IDW):** For each monitoring well, daily rainfall is interpolated from the 3 nearest meteorological stations weighted inversely by distance:
+### 1. Data Cleaning & Darcy Aggregation Funnel
+* **Gross Ingestion:** 52,088,570 sub-daily telemetry observations across 6,979 monitoring installations.
+* **Hardware Glitch Pruning:** 6,306,419 corrupted readings removed (**12.11% hardware anomaly rate**), comprising:
+  * Stuck sensor readings: `0.00 m` (3.42M rows) and `-999.0 m` missing flags (1.18M rows).
+  * Out-of-bounds bedrocks: $>150\text{ m}$ bgl (840K rows) and unphysical positive ground surges (866K rows).
+* **Darcy Median Daily Resampling:** Collapses diurnal agricultural pumping cones with a **3.84:1 reduction ratio** without deleting genuine phreatic observations:
+  $$\text{gwl\_m}_{\text{daily}} = \text{median}(\text{gwl\_m}_{\text{sub-daily}}), \quad \text{rainfall}_{\text{daily}} = \sum \text{rainfall}_{\text{hourly}}, \quad \text{temp}_{\text{daily}} = \text{mean}(\text{temp}_{\text{hourly}})$$
+
+### 2. Spatial Feature Engineering & Hydrological Coupling
+* **3D Spherical cKDTree Indexing:** Coordinates transformed to 3D Cartesian coordinates with Earth radius $R = 6,371\,\text{km}$, accelerating $K=3$ nearest neighbor lookups by **100×**.
+* **Inverse Distance Weighting (IDW):** Couples the 3 nearest meteorological stations ($d_1, d_2, d_3$) to each aquifer well:
   $$\text{Rainfall}_{\text{well}} = \frac{\sum_{i=1}^3 \frac{\text{Rainfall}_i}{d_i}}{\sum_{i=1}^3 \frac{1}{d_i}}$$
-* **Vadose Zone Infiltration Lag Dynamics:** Infiltration through unsaturated soil profiles to deep water tables involves substantial time delays. Multi-scale rolling precipitation sums capture gradual aquifer replenishment:
-  $$\text{rainfall\_roll}_{k} = \sum_{j=0}^{k-1} \text{rainfall}_{t-j} \quad \text{for } k \in \{7, 14, 30, 90\} \text{ days}$$
-* **Autoregressive & Cyclical Features:** 6 historical groundwater lag features ($GW_{t-1}, GW_{t-7}, GW_{t-14}, GW_{t-30}, GW_{t-60}, GW_{t-90}$) plus sinusoidal day-of-year transformations ($\sin(2\pi d/365), \cos(2\pi d/365)$) provide temporal memory and monsoon seasonality.
-* **Master Feature Store:** Yields **3,003,349 daily records across 62 engineered features** covering 4,879 active piezometers in 28 Indian States and UTs.
+* **Vadose Zone Infiltration Lag Dynamics:** Rolling infiltration integrals over 4 timescales ($k \in \{7, 14, 30, 90\}$ days) capture unsaturated percolation delays:
+  $$\text{rainfall\_roll}_{k} = \sum_{j=0}^{k-1} \text{rainfall}_{t-j}$$
+* **Master Feature Matrix Dimension:** **3,003,349 rows × 62 engineered feature columns** covering 4,879 active piezometers across 28 Indian States & UTs.
 
 ---
 
