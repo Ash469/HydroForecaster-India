@@ -1,4 +1,4 @@
-# 🌊 Pan-India Groundwater Level Forecasting Using Machine Learning & Hydro-Climatic Data
+# Pan-India Groundwater Level Forecasting Using Machine Learning & Hydro-Climatic Data
 > **B.Tech Project (CE4198P) — Department of Civil Engineering, Indian Institute of Technology (IIT) Guwahati**  
 > *A Continental-Scale Spatiotemporal Machine Learning Framework for Multi-Horizon Aquifer Depth Prediction and Tubewell Operational Advisory*
 
@@ -25,32 +25,35 @@
 ## 🏗️ System Architecture & End-to-End Pipeline
 
 ```mermaid
-flowchart TD
-    subgraph Ingestion ["1. Data Ingestion & Spatial Preprocessing"]
-        A["Raw Government Telemetry (52.09M Rows)<br/>171 Files: CGWB DWLR & CWC AWS Stations"] --> B["Schema Unification & Clean CSVs<br/>1unify_clean_csv.py.py"]
+graph TD
+    subgraph S1["1. Data Ingestion & Spatial Preprocessing"]
+        A["Raw Government Telemetry: 52.09M Rows<br/>171 Files: CGWB DWLR and CWC AWS Stations"] --> B["Schema Unification & Clean CSVs<br/>1unify_clean_csv.py.py"]
         B --> C["Binary Snappy Parquet Store<br/>2convert_to_parquet.py"]
-        C --> D["Master Station Catalog (6,979 stations)<br/>5build_station_catalog.py"]
+        C --> D["Master Station Catalog: 6,979 stations<br/>5build_station_catalog.py"]
         D --> E["3D Spherical cKDTree Indexing<br/>6build_spatial_index.py"]
     end
 
-    subgraph FeatureEngineering ["2. Darcy Resampling & Spatial Feature Matrix"]
-        E --> F["Daily Median Station Aggregation<br/>Filters diurnal borewell pumping noise (3.84:1 ratio)<br/>Notebook 03"]
-        F --> G["Spatial Inverse Distance Weighting (IDW)<br/>Multi-station climate-aquifer flux coupling<br/>Notebook 04"]
-        G --> H["Master Feature Store (3.00M rows × 62 features)<br/>Lags (t-1 to t-90), Rolling Infiltration, Cyclical Seasonality<br/>Notebook 05"]
+    subgraph S2["2. Darcy Resampling & Spatial Feature Matrix"]
+        E --> F["Daily Median Station Aggregation<br/>Filters diurnal borewell pumping noise<br/>Notebook 03"]
+        F --> G["Spatial Inverse Distance Weighting: IDW<br/>Multi-station climate-aquifer flux coupling<br/>Notebook 04"]
+        G --> H["Master Feature Store: 3.00M rows x 62 features<br/>Lags t-1 to t-90, Rolling Rain, Seasonality<br/>Notebook 05"]
     end
 
-    subgraph ModelTournament ["3. Multi-Tier Machine Learning Tournament"]
-        H --> I["Zero-Leakage Split<br/>Train: 2022-2024 (2.16M) | Test: 2025 (840K)"]
+    subgraph S3["3. Multi-Tier Machine Learning Tournament"]
+        H --> I["Zero-Leakage Split<br/>Train: 2022-2024: 2.16M | Test: 2025: 840K"]
         I --> J1["Tier 1: Physical & Linear Baselines<br/>Persistence, Climatology, Ridge SAG, ElasticNet<br/>Notebook 06"]
         I --> J2["Tier 2: Non-Linear Tree Ensembles<br/>Decision Trees, Random Forest, Extra Trees<br/>Notebook 07"]
         I --> J3["Tier 3: Gradient Boosters<br/>LightGBM, XGBoost, CatBoost<br/>Notebook 08"]
-        J1 & J2 & J3 --> K["Tier 4: Optuna Tuning & Feature Ablation<br/>Best Model: LightGBM (RMSE 3.68m, R² 0.9631 @ t+30)<br/>Notebook 09"]
+        J1 --> K["Tier 4: Optuna Tuning & Feature Ablation<br/>Best Model: LightGBM: RMSE 3.68m, R2 0.9631 at t+30<br/>Notebook 09"]
+        J2 --> K
+        J3 --> K
     end
 
-    subgraph WebDeployment ["4. Decision Support Platform & Inference"]
-        K --> L["Serialized Production Models (models/)<br/>Notebook 10"]
-        H --> M["Lightweight Dashboard Stores (dashboard_data/)<br/>Stations, Monthly Trajectories, Telemetry"]
-        L & M --> N["Interactive Streamlit Dashboard (app.py)<br/>• Screen 1: Data Observatory & Mathematical Funnel<br/>• Screen 2: 47-Month Pan-India GIS Map<br/>• Screen 3: Multi-Tier Model Leaderboard<br/>• Screen 4: Real-Time Well Forecaster & Advisory"]
+    subgraph S4["4. Decision Support Platform & Inference"]
+        K --> L["Serialized Production Models in models/<br/>Notebook 10"]
+        H --> M["Lightweight Dashboard Stores in dashboard_data/<br/>Stations, Monthly Trajectories, Telemetry"]
+        L --> N["Interactive Streamlit Dashboard: app.py<br/>Screen 1: Data Observatory & Mathematical Funnel<br/>Screen 2: 47-Month Pan-India GIS Map<br/>Screen 3: Multi-Tier Model Leaderboard<br/>Screen 4: Real-Time Well Forecaster & Advisory"]
+        M --> N
     end
 ```
 
