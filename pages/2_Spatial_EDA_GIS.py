@@ -136,9 +136,8 @@ hover_dict = {
     "longitude": False
 }
 
-# Full Mainland India bounds fitting
-fig_map = px.scatter_mapbox(
-    df_slice,
+# Full Mainland India bounds fitting (Supporting Plotly v6+ scatter_map & legacy scatter_mapbox)
+map_kwargs = dict(
     lat="latitude",
     lon="longitude",
     color=cfg["col"],
@@ -148,7 +147,6 @@ fig_map = px.scatter_mapbox(
     hover_data=hover_dict,
     zoom=3.7,
     center=dict(lat=21.5, lon=82.0),
-    mapbox_style="open-street-map",
     labels={
         "gwl_m": "Water Table Depth (m bgl)",
         "rainfall_idw_mm": "Monthly Rain (mm)",
@@ -159,6 +157,19 @@ fig_map = px.scatter_mapbox(
         "elevation_msl": "Altitude (m MSL)"
     }
 )
+
+if hasattr(px, "scatter_map"):
+    fig_map = px.scatter_map(
+        df_slice,
+        map_style="open-street-map",
+        **map_kwargs
+    )
+else:
+    fig_map = px.scatter_mapbox(
+        df_slice,
+        mapbox_style="open-street-map",
+        **map_kwargs
+    )
 
 # Customizing marker size and colorbar to ensure full India visibility
 fig_map.update_traces(marker=dict(size=5.5, opacity=0.85))
